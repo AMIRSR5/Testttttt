@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>مدیریت سفارش‌ها | پنل مدیریت</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+<div class="admin-layout">
+  <div id="admin-sidebar-mount"></div>
+  <main class="admin-main">
+    <h1>سفارش‌ها</h1>
+    <table class="admin-table">
+      <thead><tr><th>شماره</th><th>مشتری</th><th>تماس</th><th>نوع</th><th>مبلغ</th><th>وضعیت</th><th>جزئیات</th></tr></thead>
+      <tbody id="orders-tbody"><tr><td colspan="7" style="text-align:center; color:var(--text-muted);">در حال بارگذاری...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+
+<div class="modal-overlay" id="order-modal">
+  <div class="modal-box" id="order-modal-content"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/gold-price.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="js/admin-guard.js"></script>
+<script>
+const statusLabels = { pending:'در انتظار', confirmed:'تایید شده', processing:'در حال پردازش', shipped:'ارسال شده', completed:'تکمیل شده', cancelled:'لغو شده' };
+const statusClass = { pending:'status-pending', confirmed:'status-confirmed', processing:'status-pending', shipped:'status-confirmed', completed:'status-completed', cancelled:'status-cancelled' };
+let ordersCache = [];
+
+async function loadOrders() {
+  const { data } = await window.supabaseClient.from('orders').select('*').order('created_at', { ascending: false });
+  ordersCache = data || [];
+  document.getElementById('orders-tbody').innerHTML = ordersCache.length
+    ? ordersCache.map(o => `
+      <tr>
+        <td>${o.order_number}</td>
+        <td>${o.customer_name}</td>
+        <td>${o.customer_phone}</td>
+        <td>${o.purchase_type === 'in_person' ? 'حضوری' : 'غیرحضوری'}</td>
+        <td>${GoldPrice.formatToman(o.total_amount)}</td>
+        <td><span class="tag-btn ${statusClass[o.status]}">${statusLabels[o.status]}</span></td>
+        <td><button class="btn btn-ghost" onclick="openOrder('${o.id}')">مشاهده</button></td>
+      </tr>`).join('')
+    : '<tr><td colspan="7" style="text-align:center; color:var(--text-muted)">سفارشی ثبت نشده است.</td></tr>';
+}
+
+async function openOrder(id) {
+  const o = ordersCache.find(x => x.id === id);
+  const { data: items } = await window.supabaseClient.from('order_items').select('*').eq('order_id', id);
+  document.getElementById('order-modal-content').innerHTML = `
+    <h2 style="font-size:17px; margin-bottom:16px;">سفارش ${o.order_number}</h2>
+    <p style="font-size:14px; color:var(--text-muted); line-height:2;">
+      مشتری: ${o.customer_name}<br>تماس: ${o.customer_phone}<br>
+      ${o.purchase_type === 'remote' ? `استان/شهر: ${o.province}/${o.city}<br>آدرس: ${o.full_address}<br>کدپستی: ${o.postal_code}<br>` : ''}
+    </p>
+    <table class="admin-table" style="margin:16px 0;">
+      <thead><tr><th>محصول</th><th>تعداد</th><th>جمع</th></tr></thead>
+      <tbody>${(items||[]).map(i => `<tr><td>${i.product_name}</td><td>${i.quantity}</td><td>${GoldPrice.formatToman(i.line_total)}</td></tr>`).join('')}</tbody>
+    </table>
+    <div class="field"><label>وضعیت سفارش</label>
+      <select id="status-select">
+        ${Object.entries(statusLabels).map(([k,v]) => `<option value="${k}" ${o.status===k?'selected':''}>${v}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex; gap:12px;">
+      <button class="btn btn-primary" id="update-status-btn">به‌روزرسانی وضعیت</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('order-modal').classList.remove('show')">بستن</button>
+    </div>
+  `;
+  document.getElementById('order-modal').classList.add('show');
+  document.getElementById('update-status-btn').addEventListener('click', async () => {
+    const newStatus = document.getElementById('status-select').value;
+    const { error } = await window.supabaseClient.from('orders').update({ status: newStatus }).eq('id', id);
+    if (error) { UI.toast('خطا در به‌روزرسانی', 'error'); return; }
+    UI.toast('وضعیت سفارش به‌روزرسانی شد');
+    document.getElementById('order-modal').classList.remove('show');
+    loadOrders();
+  });
+}
+
+(async () => {
+  const profile = await requireAdmin();
+  if (!profile) return;
+  mountAdminLayout('orders');
+  loadOrders();
+})();
+</script>
+</body>
+</html>

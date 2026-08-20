@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>مدیریت قیمت طلا | پنل مدیریت</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+<div class="admin-layout">
+  <div id="admin-sidebar-mount"></div>
+  <main class="admin-main">
+    <h1>مدیریت قیمت طلا</h1>
+    <div class="form-card" style="max-width:560px;">
+      <div class="radio-tabs">
+        <label><input type="radio" name="source" value="manual"><span>قیمت دستی</span></label>
+        <label><input type="radio" name="source" value="api"><span>دریافت از API</span></label>
+      </div>
+
+      <div class="field"><label>قیمت هر گرم طلای ۱۸ عیار (تومان) — حالت دستی</label><input id="manual-price" type="number"></div>
+
+      <div id="api-fields" style="display:none;">
+        <div class="field"><label>آدرس API</label><input id="api-url" placeholder="https://..."></div>
+        <div class="field"><label>مسیر عدد قیمت در پاسخ JSON (مثال: data.price)</label><input id="api-path" placeholder="data.price"></div>
+        <p style="font-size:12.5px; color:var(--text-muted); margin-top:-8px;">اگر API از CORS پشتیبانی نکند، باید یک Edge Function میانی برای Proxy کردن آن ساخته شود.</p>
+      </div>
+
+      <div style="background:var(--bg-elevated); border:1px solid var(--line); border-radius:var(--radius); padding:16px; font-size:13.5px; margin:20px 0;">
+        <div>آخرین قیمت ثبت‌شده: <strong id="last-price" style="color:var(--gold-bright)">—</strong></div>
+        <div style="color:var(--text-muted); margin-top:6px;">آخرین به‌روزرسانی: <span id="last-updated">—</span></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="save-gold-btn">ذخیره تنظیمات</button>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/gold-price.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="js/admin-guard.js"></script>
+<script>
+function toggleSourceFields(source) {
+  document.getElementById('api-fields').style.display = source === 'api' ? 'block' : 'none';
+}
+document.querySelectorAll('input[name="source"]').forEach(r => r.addEventListener('change', e => toggleSourceFields(e.target.value)));
+
+async function load() {
+  const { data: s } = await window.supabaseClient.from('gold_price_settings').select('*').eq('id', 1).single();
+  document.querySelector(`input[name="source"][value="${s.source_type}"]`).checked = true;
+  toggleSourceFields(s.source_type);
+  document.getElementById('manual-price').value = s.manual_price_per_gram || '';
+  document.getElementById('api-url').value = s.api_url || '';
+  document.getElementById('api-path').value = s.api_path || '';
+  document.getElementById('last-price').textContent = s.last_fetched_price ? GoldPrice.formatToman(s.last_fetched_price) : '—';
+  document.getElementById('last-updated').textContent = s.last_fetched_at ? new Date(s.last_fetched_at).toLocaleString('fa-IR') : '—';
+}
+
+async function save() {
+  const source = document.querySelector('input[name="source"]:checked').value;
+  const btn = document.getElementById('save-gold-btn');
+  UI.setLoading(btn, true);
+  try {
+    const { error } = await window.supabaseClient.from('gold_price_settings').update({
+      source_type: source,
+      manual_price_per_gram: Number(document.getElementById('manual-price').value) || 0,
+      api_url: document.getElementById('api-url').value.trim() || null,
+      api_path: document.getElementById('api-path').value.trim() || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', 1);
+    if (error) throw error;
+    UI.toast('تنظیمات قیمت طلا ذخیره شد');
+  } catch (e) {
+    UI.toast('خطا در ذخیره', 'error');
+    console.error(e);
+  } finally {
+    UI.setLoading(btn, false);
+  }
+}
+
+(async () => {
+  const profile = await requireAdmin();
+  if (!profile) return;
+  mountAdminLayout('gold');
+  await load();
+  document.getElementById('save-gold-btn').addEventListener('click', save);
+})();
+</script>
+</body>
+</html>

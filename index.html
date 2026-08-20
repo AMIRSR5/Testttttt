@@ -3,121 +3,73 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>طلای سرافراز | فروشگاه آنلاین زیورآلات طلا</title>
-<meta name="description" content="خرید آنلاین زیورآلات طلا با قیمت لحظه‌ای، طراحی لوکس و ضمانت اصالت. مشاهده، سفارش و دریافت حضوری یا غیرحضوری." />
-<meta property="og:title" content="طلای سرافراز | فروشگاه آنلاین زیورآلات طلا" />
-<meta property="og:description" content="خرید آنلاین زیورآلات طلا با قیمت لحظه‌ای و طراحی لوکس." />
-<meta property="og:type" content="website" />
-<link rel="canonical" href="https://example.com/index.html" />
-<link rel="stylesheet" href="assets/css/style.css" />
+<title>داشبورد | پنل مدیریت</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="admin.css" />
 </head>
 <body>
-<div id="app-header"></div>
-
-<main>
-  <section class="hero">
-    <div class="container hero-grid">
-      <div>
-        <div class="eyebrow">فروشگاه آنلاین طلا و جواهر</div>
-        <h1>اصالت طلا،<br><em>در قاب مدرن.</em></h1>
-        <p>هر قطعه، از عیار و قیمت لحظه‌ای طلا تا اجرت، شفاف محاسبه می‌شود. سفارش حضوری یا ارسال به سراسر کشور.</p>
-        <div class="hero-actions">
-          <a href="shop.html" class="btn btn-primary">مشاهده فروشگاه</a>
-          <a href="about.html" class="btn btn-outline">درباره ما</a>
-        </div>
-      </div>
-      <div class="hero-visual reveal" data-parallax>
-        <span style="color:var(--text-muted); font-size:14px;">تصویر شاخص محصول</span>
-      </div>
+<div class="admin-layout">
+  <div id="admin-sidebar-mount"></div>
+  <main class="admin-main">
+    <h1>داشبورد</h1>
+    <div class="stat-cards" id="stat-cards">
+      <div class="stat-card"><div class="label">سفارش‌های امروز</div><div class="value">—</div></div>
+      <div class="stat-card"><div class="label">درآمد این ماه</div><div class="value">—</div></div>
+      <div class="stat-card"><div class="label">محصولات فعال</div><div class="value">—</div></div>
+      <div class="stat-card"><div class="label">سفارش‌های در انتظار</div><div class="value">—</div></div>
     </div>
-  </section>
-
-  <section class="section">
-    <div class="container">
-      <div class="section-head reveal">
-        <div>
-          <div class="eyebrow">پرفروش‌ترین‌ها</div>
-          <h2>منتخب طلای سرافراز</h2>
-        </div>
-        <a href="shop.html" class="btn btn-ghost">مشاهده همه ←</a>
-      </div>
-      <div class="grid grid-4 reveal" id="featured-products">
-        <div class="state-msg" style="grid-column: 1/-1;"><div class="spinner"></div>در حال بارگذاری محصولات...</div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" style="border-top:1px solid var(--line); border-bottom:1px solid var(--line); background: var(--bg-elevated);">
-    <div class="container grid grid-3 reveal">
-      <div>
-        <div class="badge-gold">عیار تضمینی</div>
-        <h3 style="margin-top:16px; font-size:18px;">اصالت‌سنجی هر قطعه</h3>
-        <p style="color:var(--text-muted); font-size:14px; margin-top:8px;">تمامی محصولات با مشخصات دقیق عیار و وزن ارائه می‌شوند.</p>
-      </div>
-      <div>
-        <div class="badge-gold">قیمت شفاف</div>
-        <h3 style="margin-top:16px; font-size:18px;">قیمت لحظه‌ای طلا</h3>
-        <p style="color:var(--text-muted); font-size:14px; margin-top:8px;">قیمت هر محصول بر اساس نرخ روز طلا و اجرت مشخص محاسبه می‌شود.</p>
-      </div>
-      <div>
-        <div class="badge-gold">گردونه شانس</div>
-        <h3 style="margin-top:16px; font-size:18px;">هدیه بعد از هر خرید</h3>
-        <p style="color:var(--text-muted); font-size:14px; margin-top:8px;">با هر خرید موفق یک بلیت گردونه شانس دریافت کنید.</p>
-      </div>
-    </div>
-  </section>
-</main>
-
-<div id="app-footer"></div>
+    <h2 style="font-size:17px; margin-bottom:16px;">آخرین سفارش‌ها</h2>
+    <table class="admin-table" id="recent-orders">
+      <thead><tr><th>شماره سفارش</th><th>مشتری</th><th>نوع</th><th>مبلغ</th><th>وضعیت</th></tr></thead>
+      <tbody><tr><td colspan="5" style="text-align:center; color:var(--text-muted);">در حال بارگذاری...</td></tr></tbody>
+    </table>
+  </main>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="assets/js/supabase-client.js"></script>
-<script src="assets/js/gold-price.js"></script>
-<script src="assets/js/cart.js"></script>
-<script src="assets/js/auth.js"></script>
-<script src="assets/js/ui.js"></script>
-<script src="assets/js/layout.js"></script>
+<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/gold-price.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="js/admin-guard.js"></script>
 <script>
-mountLayout('home');
+(async () => {
+  const profile = await requireAdmin();
+  if (!profile) return;
+  mountAdminLayout('dashboard');
 
-async function loadFeatured() {
-  const wrap = document.getElementById('featured-products');
-  try {
-    const pricePerGram = await GoldPrice.getPricePerGram();
-    const { data: products, error } = await window.supabaseClient
-      .from('products')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(4);
-    if (error) throw error;
+  const statusLabels = { pending:'در انتظار', confirmed:'تایید شده', processing:'در حال پردازش', shipped:'ارسال شده', completed:'تکمیل شده', cancelled:'لغو شده' };
 
-    if (!products.length) {
-      wrap.innerHTML = '<div class="state-msg" style="grid-column:1/-1;">هنوز محصولی ثبت نشده است.</div>';
-      return;
-    }
+  const { data: orders } = await window.supabaseClient.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
+  const { data: products } = await window.supabaseClient.from('products').select('id').eq('is_active', true);
 
-    wrap.innerHTML = products
-      .map((p) => {
-        const price = GoldPrice.calcProductPrice(p, pricePerGram);
-        return `
-        <a href="product.html?id=${p.id}" class="product-card">
-          <div class="thumb"><img src="${p.main_image_url || 'https://placehold.co/400x400/17171a/c9a35c?text=Product'}" alt="${p.name}" loading="lazy"></div>
-          <div class="body">
-            <div class="cat">عیار ${p.karat}</div>
-            <h3>${p.name}</h3>
-            <div class="meta"><span>${p.weight_grams} گرم</span><span class="stock-tag ${p.stock > 0 ? 'in' : 'out'}">${p.stock > 0 ? 'موجود' : 'ناموجود'}</span></div>
-            <div class="price">${GoldPrice.formatToman(price)}</div>
-          </div>
-        </a>`;
-      })
-      .join('');
-  } catch (e) {
-    wrap.innerHTML = '<div class="state-msg" style="grid-column:1/-1; color:var(--danger)">خطا در بارگذاری محصولات. لطفاً بعداً تلاش کنید.</div>';
-    console.error(e);
-  }
-}
-loadFeatured();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayOrders = (orders || []).filter((o) => o.created_at.slice(0, 10) === todayStr);
+  const monthStr = new Date().toISOString().slice(0, 7);
+  const monthRevenue = (orders || []).filter((o) => o.created_at.slice(0, 7) === monthStr && o.status !== 'cancelled')
+    .reduce((s, o) => s + Number(o.total_amount), 0);
+  const pending = (orders || []).filter((o) => o.status === 'pending').length;
+
+  const cards = document.querySelectorAll('.stat-card .value');
+  cards[0].textContent = todayOrders.length.toLocaleString('fa-IR');
+  cards[1].textContent = GoldPrice.formatToman(monthRevenue);
+  cards[2].textContent = (products || []).length.toLocaleString('fa-IR');
+  cards[3].textContent = pending.toLocaleString('fa-IR');
+
+  const tbody = document.querySelector('#recent-orders tbody');
+  const recent = (orders || []).slice(0, 10);
+  tbody.innerHTML = recent.length
+    ? recent.map(o => `
+      <tr>
+        <td>${o.order_number}</td>
+        <td>${o.customer_name}</td>
+        <td>${o.purchase_type === 'in_person' ? 'حضوری' : 'غیرحضوری'}</td>
+        <td>${GoldPrice.formatToman(o.total_amount)}</td>
+        <td>${statusLabels[o.status] || o.status}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">سفارشی ثبت نشده است.</td></tr>';
+})();
 </script>
 </body>
 </html>

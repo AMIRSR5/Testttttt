@@ -3,57 +3,59 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>نقد و بررسی‌ها | طلای سرافراز</title>
-<meta name="description" content="نظرات مشتریان درباره محصولات طلای سرافراز." />
-<link rel="canonical" href="https://example.com/reviews.html" />
-<link rel="stylesheet" href="assets/css/style.css" />
-<style>.review-card{ background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:16px; }</style>
+<title>مدیریت نقد و بررسی‌ها | پنل مدیریت</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="admin.css" />
 </head>
 <body>
-<div id="app-header"></div>
-<main>
-  <section class="section" style="padding-top:56px;">
-    <div class="container" style="max-width:760px;">
-      <div class="eyebrow">نظرات مشتریان</div>
-      <h1 style="font-size:30px; margin-bottom:32px;">نقد و بررسی‌ها</h1>
-      <div id="reviews-wrap"><div class="state-msg"><div class="spinner"></div></div></div>
-    </div>
-  </section>
-</main>
-<div id="app-footer"></div>
+<div class="admin-layout">
+  <div id="admin-sidebar-mount"></div>
+  <main class="admin-main">
+    <h1>نقد و بررسی‌ها</h1>
+    <table class="admin-table">
+      <thead><tr><th>محصول</th><th>امتیاز</th><th>نظر</th><th>وضعیت</th><th></th></tr></thead>
+      <tbody id="reviews-tbody"><tr><td colspan="5" style="text-align:center; color:var(--text-muted);">در حال بارگذاری...</td></tr></tbody>
+    </table>
+  </main>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="assets/js/supabase-client.js"></script>
-<script src="assets/js/cart.js"></script>
-<script src="assets/js/auth.js"></script>
-<script src="assets/js/ui.js"></script>
-<script src="assets/js/layout.js"></script>
+<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="js/admin-guard.js"></script>
 <script>
-mountLayout('');
+async function load() {
+  const { data } = await window.supabaseClient.from('reviews').select('*, products(name)').order('created_at', { ascending: false });
+  document.getElementById('reviews-tbody').innerHTML = (data || []).length
+    ? data.map(r => `
+      <tr>
+        <td>${r.products?.name || '—'}</td>
+        <td>${'★'.repeat(r.rating)}</td>
+        <td style="max-width:280px;">${r.comment || ''}</td>
+        <td><span class="tag-btn ${r.is_approved ? 'status-confirmed':'status-pending'}">${r.is_approved ? 'تایید شده' : 'در انتظار تایید'}</span></td>
+        <td style="white-space:nowrap;">
+          ${!r.is_approved ? `<button class="btn btn-ghost" onclick="approve('${r.id}')">تایید</button>` : ''}
+          <button class="btn btn-ghost" style="color:var(--danger)" onclick="remove('${r.id}')">حذف</button>
+        </td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center; color:var(--text-muted)">نظری ثبت نشده است.</td></tr>';
+}
+async function approve(id) {
+  await window.supabaseClient.from('reviews').update({ is_approved: true }).eq('id', id);
+  load();
+}
+async function remove(id) {
+  if (!confirm('این نظر حذف شود؟')) return;
+  await window.supabaseClient.from('reviews').delete().eq('id', id);
+  load();
+}
 (async () => {
-  const wrap = document.getElementById('reviews-wrap');
-  const { data, error } = await window.supabaseClient
-    .from('reviews')
-    .select('*, products(name, slug)')
-    .eq('is_approved', true)
-    .order('created_at', { ascending: false })
-    .limit(50);
-  if (error || !data?.length) {
-    wrap.innerHTML = '<div class="state-msg">هنوز نظری ثبت نشده است.</div>';
-    return;
-  }
-  wrap.innerHTML = data
-    .map(
-      (r) => `
-    <div class="review-card">
-      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-        <a href="product.html?id=${r.product_id}" style="color:var(--gold-bright); font-size:14px;">${r.products?.name || 'محصول'}</a>
-        <span style="color:var(--gold);">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</span>
-      </div>
-      <p style="font-size:14px; color:var(--text-muted);">${r.comment || ''}</p>
-    </div>`
-    )
-    .join('');
+  const profile = await requireAdmin();
+  if (!profile) return;
+  mountAdminLayout('reviews');
+  load();
 })();
 </script>
 </body>

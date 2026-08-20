@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>مدیریت دسته‌بندی‌ها | پنل مدیریت</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+<div class="admin-layout">
+  <div id="admin-sidebar-mount"></div>
+  <main class="admin-main">
+    <div class="admin-toolbar">
+      <h1 style="margin:0;">دسته‌بندی‌ها</h1>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 2fr; gap:14px; max-width:600px; margin-bottom:26px;">
+      <input id="new-cat-name" class="field" style="background:var(--bg-elevated); border:1px solid var(--line); color:var(--text); padding:13px 16px; border-radius:var(--radius);" placeholder="نام دسته‌بندی جدید">
+      <button class="btn btn-primary" id="add-cat-btn">افزودن</button>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>نام</th><th>ترتیب نمایش</th><th></th></tr></thead>
+      <tbody id="cat-tbody"><tr><td colspan="3" style="text-align:center; color:var(--text-muted);">در حال بارگذاری...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="js/admin-guard.js"></script>
+<script>
+async function load() {
+  const { data } = await window.supabaseClient.from('categories').select('*').order('sort_order');
+  document.getElementById('cat-tbody').innerHTML = (data || []).map(c => `
+    <tr>
+      <td>${c.name}</td>
+      <td><input type="number" value="${c.sort_order}" style="width:70px; background:var(--bg-elevated); border:1px solid var(--line); color:var(--text); padding:6px; border-radius:4px;" onchange="updateOrder('${c.id}', this.value)"></td>
+      <td><button class="btn btn-ghost" style="color:var(--danger)" onclick="removeCat('${c.id}')">حذف</button></td>
+    </tr>`).join('') || '<tr><td colspan="3" style="text-align:center; color:var(--text-muted)">دسته‌بندی ثبت نشده است.</td></tr>';
+}
+async function updateOrder(id, value) {
+  await window.supabaseClient.from('categories').update({ sort_order: Number(value) }).eq('id', id);
+}
+async function removeCat(id) {
+  if (!confirm('این دسته‌بندی حذف شود؟')) return;
+  await window.supabaseClient.from('categories').delete().eq('id', id);
+  load();
+}
+(async () => {
+  const profile = await requireAdmin();
+  if (!profile) return;
+  mountAdminLayout('categories');
+  load();
+  document.getElementById('add-cat-btn').addEventListener('click', async () => {
+    const input = document.getElementById('new-cat-name');
+    const name = input.value.trim();
+    if (!name) return;
+    const slug = name.replace(/\s+/g, '-') + '-' + Date.now().toString().slice(-5);
+    const { error } = await window.supabaseClient.from('categories').insert({ name, slug });
+    if (error) { UI.toast('خطا در افزودن', 'error'); return; }
+    input.value = '';
+    load();
+  });
+})();
+</script>
+</body>
+</html>

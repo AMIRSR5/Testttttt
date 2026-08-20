@@ -3,132 +3,109 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>گردونه شانس | طلای سرافراز</title>
+<title>مدیریت گردونه شانس | پنل مدیریت</title>
 <meta name="robots" content="noindex" />
-<link rel="stylesheet" href="assets/css/style.css" />
-<style>
-  .wheel-wrap{ max-width:420px; margin:0 auto; text-align:center; }
-  #wheel-canvas{ border-radius:50%; border:4px solid var(--gold-dim); margin-bottom:26px; }
-  .pointer{ width:0; height:0; border-left:12px solid transparent; border-right:12px solid transparent; border-top:20px solid var(--gold-bright); margin:0 auto -8px; }
-</style>
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="admin.css" />
 </head>
 <body>
-<div id="app-header"></div>
-<main>
-  <section class="section" style="padding-top:56px;">
-    <div class="container wheel-wrap">
-      <div class="eyebrow" style="justify-content:center;">گردونه شانس</div>
-      <h1 style="font-size:26px; margin-bottom:10px;">شانس خود را امتحان کنید</h1>
-      <p style="color:var(--text-muted); font-size:14px; margin-bottom:28px;">
-        بلیت‌های شما: <strong id="ticket-count" style="color:var(--gold-bright)">۰</strong>
-      </p>
-      <div id="wheel-area">
-        <div class="pointer"></div>
-        <canvas id="wheel-canvas" width="320" height="320"></canvas>
-        <div><button class="btn btn-primary" id="spin-btn">چرخاندن گردونه</button></div>
-      </div>
-      <div id="wheel-result" style="margin-top:24px; font-size:15px;"></div>
+<div class="admin-layout">
+  <div id="admin-sidebar-mount"></div>
+  <main class="admin-main">
+    <div class="admin-toolbar">
+      <h1 style="margin:0;">گردونه شانس</h1>
+      <label style="display:flex; align-items:center; gap:10px; font-size:14px;">
+        <input type="checkbox" id="wheel-enabled" style="width:auto;"> گردونه فعال باشد
+      </label>
     </div>
-  </section>
-</main>
-<div id="app-footer"></div>
+
+    <div class="admin-toolbar">
+      <h2 style="font-size:16px; margin:0;">جوایز</h2>
+      <button class="btn btn-primary" id="add-prize-btn">+ افزودن جایزه</button>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>عنوان</th><th>توضیحات</th><th>وزن احتمال</th><th>فعال</th><th></th></tr></thead>
+      <tbody id="prizes-tbody"><tr><td colspan="5" style="text-align:center; color:var(--text-muted);">در حال بارگذاری...</td></tr></tbody>
+    </table>
+
+    <h2 style="font-size:16px; margin:32px 0 16px;">تاریخچه چرخش‌ها</h2>
+    <table class="admin-table">
+      <thead><tr><th>جایزه</th><th>تاریخ</th></tr></thead>
+      <tbody id="spins-tbody"><tr><td colspan="2" style="text-align:center; color:var(--text-muted);">در حال بارگذاری...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+
+<div class="modal-overlay" id="prize-modal">
+  <div class="modal-box">
+    <h2 style="font-size:17px; margin-bottom:16px;">افزودن جایزه</h2>
+    <div class="field"><label>عنوان جایزه</label><input id="prize-title"></div>
+    <div class="field"><label>توضیحات</label><textarea id="prize-desc" rows="2"></textarea></div>
+    <div class="field"><label>وزن احتمال (عدد بزرگ‌تر = شانس بیشتر)</label><input id="prize-weight" type="number" value="1"></div>
+    <div style="display:flex; gap:12px;">
+      <button class="btn btn-primary" id="save-prize-btn">ذخیره</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('prize-modal').classList.remove('show')">انصراف</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="assets/js/supabase-client.js"></script>
-<script src="assets/js/cart.js"></script>
-<script src="assets/js/auth.js"></script>
-<script src="assets/js/ui.js"></script>
-<script src="assets/js/layout.js"></script>
+<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="js/admin-guard.js"></script>
 <script>
-mountLayout('');
-
-let prizes = [];
-let profile = null;
-let wheelEnabled = true;
-const colors = ['#c9a35c', '#8a713c', '#e9c988', '#6b5a30'];
-
-function drawWheel() {
-  const canvas = document.getElementById('wheel-canvas');
-  const ctx = canvas.getContext('2d');
-  const cx = 160, cy = 160, r = 155;
-  const slice = (2 * Math.PI) / prizes.length;
-  prizes.forEach((p, i) => {
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, i * slice, (i + 1) * slice);
-    ctx.fillStyle = colors[i % colors.length];
-    ctx.fill();
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(i * slice + slice / 2);
-    ctx.fillStyle = '#0b0b0d';
-    ctx.font = '13px Vazirmatn, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(p.title.slice(0, 12), r - 14, 4);
-    ctx.restore();
-  });
+async function loadPrizes() {
+  const { data } = await window.supabaseClient.from('wheel_prizes').select('*').order('sort_order');
+  document.getElementById('prizes-tbody').innerHTML = (data || []).length
+    ? data.map(p => `
+      <tr>
+        <td>${p.title}</td><td>${p.description || '—'}</td><td>${p.probability_weight}</td>
+        <td><input type="checkbox" ${p.is_active ? 'checked' : ''} onchange="togglePrize('${p.id}', this.checked)"></td>
+        <td><button class="btn btn-ghost" style="color:var(--danger)" onclick="deletePrize('${p.id}')">حذف</button></td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center; color:var(--text-muted)">جایزه‌ای ثبت نشده است.</td></tr>';
 }
-
-function pickWeightedPrize() {
-  const totalWeight = prizes.reduce((s, p) => s + Number(p.probability_weight || 1), 0);
-  let rand = Math.random() * totalWeight;
-  for (const p of prizes) {
-    rand -= Number(p.probability_weight || 1);
-    if (rand <= 0) return p;
-  }
-  return prizes[prizes.length - 1];
+async function togglePrize(id, val) {
+  await window.supabaseClient.from('wheel_prizes').update({ is_active: val }).eq('id', id);
 }
-
-async function spin() {
-  if (!wheelEnabled) { UI.toast('گردونه شانس در حال حاضر غیرفعال است', 'error'); return; }
-  const user = await Auth.getUser();
-  if (!user) { UI.toast('برای چرخاندن گردونه ابتدا وارد حساب کاربری شوید', 'error'); return; }
-  if (!profile || profile.wheel_tickets <= 0) { UI.toast('بلیت گردونه ندارید. با خرید موفق بلیت دریافت کنید.', 'error'); return; }
-  if (!prizes.length) { UI.toast('در حال حاضر جایزه‌ای تعریف نشده است', 'error'); return; }
-
-  const btn = document.getElementById('spin-btn');
-  UI.setLoading(btn, true, 'در حال چرخش...');
-
-  const canvas = document.getElementById('wheel-canvas');
-  canvas.style.transition = 'transform 3.2s cubic-bezier(.17,.67,.34,1)';
-  const randomTurns = 4 + Math.random() * 2;
-  canvas.style.transform = `rotate(${randomTurns * 360}deg)`;
-
-  setTimeout(async () => {
-    const won = pickWeightedPrize();
-    try {
-      await window.supabaseClient.from('wheel_spins').insert({ user_id: user.id, prize_id: won.id, prize_title_snapshot: won.title });
-      await window.supabaseClient.from('profiles').update({ wheel_tickets: profile.wheel_tickets - 1 }).eq('id', user.id);
-      profile.wheel_tickets -= 1;
-      document.getElementById('ticket-count').textContent = profile.wheel_tickets.toLocaleString('fa-IR');
-      document.getElementById('wheel-result').innerHTML = `🎉 تبریک! جایزه شما: <strong style="color:var(--gold-bright)">${won.title}</strong>`;
-    } catch (e) {
-      UI.toast('خطا در ثبت نتیجه چرخش', 'error');
-      console.error(e);
-    } finally {
-      UI.setLoading(btn, false);
-    }
-  }, 3300);
+async function deletePrize(id) {
+  if (!confirm('این جایزه حذف شود؟')) return;
+  await window.supabaseClient.from('wheel_prizes').delete().eq('id', id);
+  loadPrizes();
 }
-
+async function loadSpins() {
+  const { data } = await window.supabaseClient.from('wheel_spins').select('*').order('spun_at', { ascending: false }).limit(50);
+  document.getElementById('spins-tbody').innerHTML = (data || []).length
+    ? data.map(s => `<tr><td>${s.prize_title_snapshot || '—'}</td><td>${new Date(s.spun_at).toLocaleString('fa-IR')}</td></tr>`).join('')
+    : '<tr><td colspan="2" style="text-align:center; color:var(--text-muted)">چرخشی ثبت نشده است.</td></tr>';
+}
+async function loadWheelSettings() {
+  const { data } = await window.supabaseClient.from('wheel_settings').select('*').eq('id', 1).single();
+  document.getElementById('wheel-enabled').checked = data?.is_enabled ?? true;
+}
 (async () => {
-  const { data: ws } = await window.supabaseClient.from('wheel_settings').select('*').eq('id', 1).single();
-  wheelEnabled = ws?.is_enabled ?? true;
-  if (!wheelEnabled) {
-    document.getElementById('wheel-area').innerHTML = '<p style="color:var(--text-muted)">گردونه شانس در حال حاضر غیرفعال است.</p>';
-    return;
-  }
-  const { data: pz } = await window.supabaseClient.from('wheel_prizes').select('*').eq('is_active', true).order('sort_order');
-  prizes = pz || [];
-  if (!prizes.length) {
-    document.getElementById('wheel-area').innerHTML = '<p style="color:var(--text-muted)">هنوز جایزه‌ای تعریف نشده است.</p>';
-    return;
-  }
-  drawWheel();
+  const profile = await requireAdmin();
+  if (!profile) return;
+  mountAdminLayout('wheel');
+  await Promise.all([loadPrizes(), loadSpins(), loadWheelSettings()]);
 
-  profile = await Auth.getProfile();
-  document.getElementById('ticket-count').textContent = (profile?.wheel_tickets || 0).toLocaleString('fa-IR');
-  document.getElementById('spin-btn').addEventListener('click', spin);
+  document.getElementById('wheel-enabled').addEventListener('change', async (e) => {
+    await window.supabaseClient.from('wheel_settings').update({ is_enabled: e.target.checked }).eq('id', 1);
+    UI.toast('تنظیمات گردونه ذخیره شد');
+  });
+  document.getElementById('add-prize-btn').addEventListener('click', () => document.getElementById('prize-modal').classList.add('show'));
+  document.getElementById('save-prize-btn').addEventListener('click', async () => {
+    const title = document.getElementById('prize-title').value.trim();
+    if (!title) { UI.toast('عنوان جایزه الزامی است', 'error'); return; }
+    const { error } = await window.supabaseClient.from('wheel_prizes').insert({
+      title, description: document.getElementById('prize-desc').value.trim(),
+      probability_weight: Number(document.getElementById('prize-weight').value) || 1,
+    });
+    if (error) { UI.toast('خطا در ذخیره', 'error'); return; }
+    document.getElementById('prize-modal').classList.remove('show');
+    loadPrizes();
+  });
 })();
 </script>
 </body>

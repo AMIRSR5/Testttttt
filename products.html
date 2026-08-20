@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>مدیریت محصولات | پنل مدیریت</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="../assets/css/style.css" />
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+<div class="admin-layout">
+  <div id="admin-sidebar-mount"></div>
+  <main class="admin-main">
+    <div class="admin-toolbar">
+      <h1 style="margin:0;">مدیریت محصولات</h1>
+      <button class="btn btn-primary" id="new-product-btn">+ افزودن محصول</button>
+    </div>
+    <table class="admin-table">
+      <thead><tr><th>تصویر</th><th>نام</th><th>دسته</th><th>وزن</th><th>عیار</th><th>موجودی</th><th>وضعیت</th><th></th></tr></thead>
+      <tbody id="products-tbody"><tr><td colspan="8" style="text-align:center; color:var(--text-muted);">در حال بارگذاری...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+
+<div class="modal-overlay" id="product-modal">
+  <div class="modal-box">
+    <h2 style="font-size:17px; margin-bottom:20px;" id="modal-title">افزودن محصول</h2>
+    <input type="hidden" id="p-id">
+    <div class="field"><label>نام محصول</label><input id="p-name"></div>
+    <div class="field"><label>دسته‌بندی</label><select id="p-category"></select></div>
+    <div class="field"><label>توضیحات</label><textarea id="p-description" rows="3"></textarea></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+      <div class="field"><label>وزن (گرم)</label><input id="p-weight" type="number" step="0.001"></div>
+      <div class="field"><label>عیار</label><input id="p-karat" type="number" value="18"></div>
+      <div class="field"><label>درصد سود/اجرت (%)</label><input id="p-profit" type="number" step="0.01" value="0"></div>
+      <div class="field"><label>اجرت ثابت (تومان)</label><input id="p-fee" type="number" value="0"></div>
+      <div class="field"><label>قیمت دستی (اختیاری — اگر پر شود جایگزین فرمول می‌شود)</label><input id="p-override" type="number"></div>
+      <div class="field"><label>موجودی</label><input id="p-stock" type="number" value="0"></div>
+    </div>
+    <div class="field"><label>لینک تصویر اصلی</label><input id="p-main-image" placeholder="https://"></div>
+    <div class="field"><label>لینک‌های گالری (هرکدام در یک خط)</label><textarea id="p-gallery" rows="3" placeholder="https://...&#10;https://..."></textarea></div>
+    <div class="field"><label>لینک ویدئوی محصول (اختیاری)</label><input id="p-video" placeholder="https://"></div>
+    <div class="field"><label>مشخصات فنی (هر خط: کلید=مقدار)</label><textarea id="p-specs" rows="3" placeholder="جنس=طلای ۱۸ عیار&#10;سایز=قابل تنظیم"></textarea></div>
+    <div class="field"><label><input type="checkbox" id="p-active" checked style="width:auto; margin-left:8px;">فعال و قابل نمایش در فروشگاه</label></div>
+    <div style="display:flex; gap:12px; margin-top:10px;">
+      <button class="btn btn-primary" id="save-product-btn">ذخیره</button>
+      <button class="btn btn-ghost" id="cancel-product-btn">انصراف</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/gold-price.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="js/admin-guard.js"></script>
+<script>
+let categories = [];
+
+function specsToText(specs) {
+  return Object.entries(specs || {}).map(([k, v]) => `${k}=${v}`).join('\n');
+}
+function textToSpecs(text) {
+  const obj = {};
+  text.split('\n').forEach((line) => {
+    const [k, ...rest] = line.split('=');
+    if (k && rest.length) obj[k.trim()] = rest.join('=').trim();
+  });
+  return obj;
+}
+
+function openModal(product = null) {
+  document.getElementById('modal-title').textContent = product ? 'ویرایش محصول' : 'افزودن محصول';
+  document.getElementById('p-id').value = product?.id || '';
+  document.getElementById('p-name').value = product?.name || '';
+  document.getElementById('p-category').value = product?.category_id || '';
+  document.getElementById('p-description').value = product?.description || '';
+  document.getElementById('p-weight').value = product?.weight_grams || '';
+  document.getElementById('p-karat').value = product?.karat || 18;
+  document.getElementById('p-profit').value = product?.profit_percent ?? 0;
+  document.getElementById('p-fee').value = product?.making_fee ?? 0;
+  document.getElementById('p-override').value = product?.manual_price_override || '';
+  document.getElementById('p-stock').value = product?.stock ?? 0;
+  document.getElementById('p-main-image').value = product?.main_image_url || '';
+  document.getElementById('p-gallery').value = (product?.gallery_urls || []).join('\n');
+  document.getElementById('p-video').value = product?.video_url || '';
+  document.getElementById('p-specs').value = specsToText(product?.specs);
+  document.getElementById('p-active').checked = product ? product.is_active : true;
+  document.getElementById('product-modal').classList.add('show');
+}
+function closeModal() { document.getElementById('product-modal').classList.remove('show'); }
+
+function slugify(text) {
+  return text.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^\w\-آ-ی]/g, '') + '-' + Date.now().toString().slice(-5);
+}
+
+async function saveProduct() {
+  const id = document.getElementById('p-id').value;
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { UI.toast('نام محصول الزامی است', 'error'); return; }
+
+  const payload = {
+    name,
+    category_id: document.getElementById('p-category').value || null,
+    description: document.getElementById('p-description').value.trim(),
+    weight_grams: Number(document.getElementById('p-weight').value) || 0,
+    karat: Number(document.getElementById('p-karat').value) || 18,
+    profit_percent: Number(document.getElementById('p-profit').value) || 0,
+    making_fee: Number(document.getElementById('p-fee').value) || 0,
+    manual_price_override: document.getElementById('p-override').value ? Number(document.getElementById('p-override').value) : null,
+    stock: Number(document.getElementById('p-stock').value) || 0,
+    main_image_url: document.getElementById('p-main-image').value.trim(),
+    gallery_urls: document.getElementById('p-gallery').value.split('\n').map((s) => s.trim()).filter(Boolean),
+    video_url: document.getElementById('p-video').value.trim() || null,
+    specs: textToSpecs(document.getElementById('p-specs').value),
+    is_active: document.getElementById('p-active').checked,
+  };
+
+  const btn = document.getElementById('save-product-btn');
+  UI.setLoading(btn, true);
+  try {
+    if (id) {
+      const { error } = await window.supabaseClient.from('products').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+    } else {
+      const { error } = await window.supabaseClient.from('products').insert({ ...payload, slug: slugify(name) });
+      if (error) throw error;
+    }
+    UI.toast('محصول ذخیره شد');
+    closeModal();
+    loadProducts();
+  } catch (e) {
+    UI.toast('خطا در ذخیره محصول', 'error');
+    console.error(e);
+  } finally {
+    UI.setLoading(btn, false);
+  }
+}
+
+async function deleteProduct(id) {
+  if (!confirm('این محصول حذف شود؟')) return;
+  const { error } = await window.supabaseClient.from('products').delete().eq('id', id);
+  if (error) { UI.toast('خطا در حذف', 'error'); return; }
+  UI.toast('محصول حذف شد');
+  loadProducts();
+}
+
+async function loadProducts() {
+  const pricePerGram = await GoldPrice.getPricePerGram().catch(() => 0);
+  const { data, error } = await window.supabaseClient.from('products').select('*').order('created_at', { ascending: false });
+  const tbody = document.getElementById('products-tbody');
+  if (error) { tbody.innerHTML = '<tr><td colspan="8">خطا در بارگذاری</td></tr>'; return; }
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-muted)">محصولی ثبت نشده است.</td></tr>'; return; }
+
+  tbody.innerHTML = data.map((p) => {
+    const cat = categories.find((c) => c.id === p.category_id);
+    return `
+    <tr>
+      <td><img src="${p.main_image_url || 'https://placehold.co/60x60/17171a/c9a35c?text=-'}" style="width:44px;height:44px;object-fit:cover;border-radius:4px;"></td>
+      <td>${p.name}<br><span style="color:var(--text-muted); font-size:12px;">${GoldPrice.formatToman(GoldPrice.calcProductPrice(p, pricePerGram))}</span></td>
+      <td>${cat?.name || '—'}</td>
+      <td>${p.weight_grams} گرم</td>
+      <td>${p.karat}</td>
+      <td>${p.stock}</td>
+      <td><span class="tag-btn ${p.is_active ? 'status-confirmed' : 'status-cancelled'}">${p.is_active ? 'فعال' : 'غیرفعال'}</span></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-ghost" onclick='editProduct(${JSON.stringify(p).replace(/'/g, "&apos;")})'>ویرایش</button>
+        <button class="btn btn-ghost" style="color:var(--danger)" onclick="deleteProduct('${p.id}')">حذف</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function editProduct(p) { openModal(p); }
+
+async function loadCategoriesForSelect() {
+  const { data } = await window.supabaseClient.from('categories').select('*').order('sort_order');
+  categories = data || [];
+  const select = document.getElementById('p-category');
+  select.innerHTML = '<option value="">بدون دسته</option>' + categories.map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+(async () => {
+  const profile = await requireAdmin();
+  if (!profile) return;
+  mountAdminLayout('products');
+  await loadCategoriesForSelect();
+  await loadProducts();
+
+  document.getElementById('new-product-btn').addEventListener('click', () => openModal());
+  document.getElementById('cancel-product-btn').addEventListener('click', closeModal);
+  document.getElementById('save-product-btn').addEventListener('click', saveProduct);
+})();
+</script>
+</body>
+</html>
