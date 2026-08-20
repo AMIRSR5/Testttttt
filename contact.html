@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>تماس با ما | طلای سرافراز</title>
+<meta name="description" content="راه‌های ارتباطی با طلای سرافراز؛ تلفن، ایمیل و شبکه‌های اجتماعی." />
+<link rel="canonical" href="https://example.com/contact.html" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div id="app-header"></div>
+<main>
+  <section class="section" style="padding-top:56px; max-width:640px; margin:0 auto;">
+    <div class="eyebrow">تماس با ما</div>
+    <h1 style="font-size:30px; margin-bottom:32px;">در ارتباط باشید</h1>
+    <div class="form-card" style="max-width:100%;" id="contact-content">
+      <div class="state-msg"><div class="spinner"></div></div>
+    </div>
+    <div style="text-align:center; margin-top:24px;">
+      <button class="btn btn-outline" id="qr-btn">دریافت QR Code اطلاعات فروشگاه</button>
+      <div id="qr-box" style="display:none; margin-top:16px;"></div>
+    </div>
+  </section>
+</main>
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('contact');
+let siteSettingsCache = null;
+(async () => {
+  const { data: s } = await window.supabaseClient.from('site_settings').select('*').eq('id', 1).single();
+  siteSettingsCache = s;
+  document.getElementById('contact-content').innerHTML = `
+    <div class="field"><label>تلفن</label><div>${s?.phone || '—'}</div></div>
+    <div class="field"><label>ایمیل</label><div>${s?.email || '—'}</div></div>
+    <div class="field"><label>آدرس</label><div>${s?.address || '—'}</div></div>
+    <div class="field"><label>ساعات کاری</label><div>${s?.working_hours || '—'}</div></div>
+    <div class="field"><label>اینستاگرام</label><div>${s?.instagram_id ? `<a href="https://instagram.com/${s.instagram_id}" style="color:var(--gold-bright)">@${s.instagram_id}</a>` : '—'}</div></div>
+  `;
+})();
+document.getElementById('qr-btn').addEventListener('click', () => {
+  const box = document.getElementById('qr-box');
+  box.style.display = 'block';
+  const info = `طلای سرافراز\nتلفن: ${siteSettingsCache?.phone || ''}\nآدرس: ${siteSettingsCache?.address || ''}`;
+  const qr = qrcode(0, 'M');
+  qr.addData(info);
+  qr.make();
+  box.innerHTML = qr.createImgTag(5, 8);
+});
+</script>
+</body>
+</html>

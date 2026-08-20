@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title id="page-title">جزئیات محصول | طلای سرافراز</title>
+<meta id="meta-desc" name="description" content="مشاهده جزئیات، عیار، وزن و قیمت محصول." />
+<link rel="stylesheet" href="assets/css/style.css" />
+<style>
+  .product-detail{ display:grid; grid-template-columns: 1fr 1fr; gap:60px; }
+  @media (max-width:900px){ .product-detail{ grid-template-columns:1fr; gap:32px; } }
+  .gallery-main{ aspect-ratio:1/1; background:#1c1c1f; border-radius:var(--radius); overflow:hidden; margin-bottom:14px; }
+  .gallery-main img, .gallery-main video{ width:100%; height:100%; object-fit:cover; }
+  .gallery-thumbs{ display:flex; gap:10px; overflow-x:auto; }
+  .gallery-thumbs img{ width:70px; height:70px; object-fit:cover; border-radius:var(--radius); cursor:pointer; border:1px solid var(--line); opacity:.7; }
+  .gallery-thumbs img.active{ opacity:1; border-color:var(--gold); }
+  .price-breakdown{ background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin:24px 0; font-size:14px; color:var(--text-muted); }
+  .price-breakdown div{ display:flex; justify-content:space-between; padding:6px 0; }
+  .spec-table{ width:100%; border-collapse:collapse; margin-top:16px; }
+  .spec-table td{ padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .spec-table td:first-child{ color:var(--text-muted); width:40%; }
+  .qty-input{ display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:var(--radius); width:fit-content; }
+  .qty-input button{ background:none; border:none; color:var(--text); font-size:18px; padding:10px 16px; }
+  .qty-input input{ width:44px; text-align:center; background:none; border:none; color:var(--text); }
+  .review-item{ border-bottom:1px solid var(--line); padding:18px 0; }
+  .review-stars{ color: var(--gold); }
+</style>
+</head>
+<body>
+<div id="app-header"></div>
+
+<main>
+  <section class="section" style="padding-top:44px;">
+    <div class="container" id="product-root">
+      <div class="state-msg"><div class="spinner"></div>در حال بارگذاری محصول...</div>
+    </div>
+  </section>
+</main>
+
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/gold-price.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('shop');
+
+const productId = new URLSearchParams(location.search).get('id');
+const root = document.getElementById('product-root');
+
+function switchMainMedia(url, isVideo = false) {
+  const mainEl = document.getElementById('gallery-main-el');
+  mainEl.innerHTML = isVideo
+    ? `<video src="${url}" controls playsinline></video>`
+    : `<img src="${url}" alt="تصویر محصول" />`;
+}
+
+async function loadReviews(pid) {
+  const { data } = await window.supabaseClient
+    .from('reviews')
+    .select('*')
+    .eq('product_id', pid)
+    .eq('is_approved', true)
+    .order('created_at', { ascending: false });
+  const list = data || [];
+  const wrap = document.getElementById('reviews-list');
+  if (!wrap) return;
+  wrap.innerHTML = list.length
+    ? list
+        .map(
+          (r) => `
+      <div class="review-item">
+        <div class="review-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</div>
+        <p style="margin-top:8px; font-size:14px;">${r.comment || ''}</p>
+      </div>`
+        )
+        .join('')
+    : '<p style="color:var(--text-muted); font-size:14px;">هنوز نظری ثبت نشده است.</p>';
+}
+
+async function submitReview(pid) {
+  const user = await Auth.getUser();
+  if (!user) { UI.toast('برای ثبت نظر ابتدا وارد حساب کاربری شوید', 'error'); return; }
+  const rating = Number(document.getElementById('review-rating').value);
+  const comment = document.getElementById('review-comment').value.trim();
+  const btn = document.getElementById('review-submit-btn');
+  UI.setLoading(btn, true);
+  try {
+    const { error } = await window.supabaseClient.from('reviews').insert({
+      product_id: pid, user_id: user.id, rating, comment,
+    });
+    if (error) throw error;
+    UI.toast('نظر شما ثبت شد و پس از تایید نمایش داده می‌شود');
+    document.getElementById('review-comment').value = '';
+  } catch (e) {
+    UI.toast('ثبت نظر با خطا مواجه شد', 'error');
+    console.error(e);
+  } finally {
+    UI.setLoading(btn, false);
+  }
+}
+
+async function load() {
+  if (!productId) {
+    root.innerHTML = '<div class="state-msg">محصول یافت نشد.</div>';
+    return;
+  }
+  try {
+    const pricePerGram = await GoldPrice.getPricePerGram();
+    const { data: p, error } = await window.supabaseClient.from('products').select('*').eq('id', productId).single();
+    if (error || !p) throw error || new Error('not found');
+
+    const price = GoldPrice.calcProductPrice(p, pricePerGram);
+    const goldCost = Math.round(p.weight_grams * pricePerGram);
+    const profitAmount = Math.round(goldCost * (p.profit_percent / 100));
+
+    document.getElementById('page-title').textContent = `${p.name} | طلای سرافراز`;
+    document.getElementById('meta-desc').setAttribute('content', (p.description || '').slice(0, 150));
+
+    const gallery = [p.main_image_url, ...(p.gallery_urls || [])].filter(Boolean);
+    const specs = p.specs && typeof p.specs === 'object' ? Object.entries(p.specs) : [];
+
+    root.innerHTML = `
+      <div class="product-detail">
+        <div>
+          <div class="gallery-main" id="gallery-main-el">
+            <img src="${gallery[0] || 'https://placehold.co/600x600/17171a/c9a35c?text=Product'}" alt="${p.name}">
+          </div>
+          <div class="gallery-thumbs">
+            ${gallery.map((g, i) => `<img src="${g}" class="${i === 0 ? 'active' : ''}" onclick="switchMainMedia('${g}'); document.querySelectorAll('.gallery-thumbs img').forEach(t=>t.classList.remove('active')); event.target.classList.add('active')">`).join('')}
+            ${p.video_url ? `<div style="width:70px;height:70px;border-radius:var(--radius);background:var(--bg-card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;" onclick="switchMainMedia('${p.video_url}', true)">▶</div>` : ''}
+          </div>
+        </div>
+        <div>
+          <div class="eyebrow">عیار ${p.karat} · ${p.weight_grams} گرم</div>
+          <h1 style="font-size:28px;">${p.name}</h1>
+          <div class="price" style="font-size:26px; margin-top:16px;">${GoldPrice.formatToman(price)}</div>
+
+          <div class="price-breakdown">
+            <div><span>ارزش طلای پایه (${p.weight_grams} گرم)</span><span>${GoldPrice.formatToman(goldCost)}</span></div>
+            <div><span>سود/اجرت (${p.profit_percent}%)</span><span>${GoldPrice.formatToman(profitAmount)}</span></div>
+            <div><span>اجرت ثابت</span><span>${GoldPrice.formatToman(p.making_fee)}</span></div>
+            <div style="border-top:1px solid var(--line); padding-top:10px; margin-top:4px; color:var(--gold-bright); font-weight:600;"><span>قیمت نهایی</span><span>${GoldPrice.formatToman(price)}</span></div>
+          </div>
+
+          <p style="color:var(--text-muted); font-size:14.5px;">${p.description || ''}</p>
+
+          <div class="qty-input" style="margin:24px 0;">
+            <button onclick="document.getElementById('qty').stepDown()">−</button>
+            <input id="qty" type="number" value="1" min="1" max="${p.stock}" />
+            <button onclick="document.getElementById('qty').stepUp()">+</button>
+          </div>
+
+          <button class="btn btn-primary btn-block" id="add-cart-btn" ${p.stock <= 0 ? 'disabled' : ''}>
+            ${p.stock <= 0 ? 'ناموجود' : 'افزودن به سبد خرید'}
+          </button>
+
+          <button class="btn btn-outline btn-block" style="margin-top:12px;" id="qr-btn">دریافت QR Code این محصول</button>
+          <div id="qr-box" style="display:none; margin-top:16px; text-align:center;"></div>
+
+          ${specs.length ? `<table class="spec-table">${specs.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>` : ''}
+        </div>
+      </div>
+
+      <div class="section" style="padding-bottom:0;">
+        <h2 style="font-size:22px; margin-bottom:24px;">نقد و بررسی کاربران</h2>
+        <div id="reviews-list"></div>
+        <div class="form-card" style="margin:28px 0 0; max-width:100%;">
+          <h3 style="font-size:16px; margin-bottom:16px;">ثبت نظر شما</h3>
+          <div class="field">
+            <label>امتیاز</label>
+            <select id="review-rating">
+              <option value="5">۵ - عالی</option>
+              <option value="4">۴ - خوب</option>
+              <option value="3">۳ - متوسط</option>
+              <option value="2">۲ - ضعیف</option>
+              <option value="1">۱ - بسیار ضعیف</option>
+            </select>
+          </div>
+          <div class="field"><label>نظر شما</label><textarea id="review-comment" rows="3"></textarea></div>
+          <button class="btn btn-outline" id="review-submit-btn">ثبت نظر</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('add-cart-btn').addEventListener('click', () => {
+      const qty = Number(document.getElementById('qty').value) || 1;
+      Cart.add({ productId: p.id, name: p.name, unitPrice: price, image: gallery[0] }, qty);
+      UI.toast('محصول به سبد خرید اضافه شد');
+    });
+    document.getElementById('review-submit-btn').addEventListener('click', () => submitReview(p.id));
+
+    document.getElementById('qr-btn').addEventListener('click', () => {
+      const box = document.getElementById('qr-box');
+      box.style.display = 'block';
+      box.innerHTML = '';
+      const qr = qrcode(0, 'M');
+      qr.addData(window.location.href);
+      qr.make();
+      box.innerHTML = qr.createImgTag(5, 8);
+    });
+
+    loadReviews(p.id);
+  } catch (e) {
+    root.innerHTML = '<div class="state-msg" style="color:var(--danger)">محصول مورد نظر پیدا نشد یا خطایی رخ داد.</div>';
+    console.error(e);
+  }
+}
+
+load();
+</script>
+</body>
+</html>

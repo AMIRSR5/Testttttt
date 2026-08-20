@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ورود و ثبت‌نام | طلای سرافراز</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div id="app-header"></div>
+<main>
+  <section class="section" style="padding-top:60px;">
+    <div class="container">
+      <div class="form-card" id="auth-card">
+        <div class="radio-tabs">
+          <label><input type="radio" name="mode" value="login" checked><span>ورود</span></label>
+          <label><input type="radio" name="mode" value="signup"><span>ثبت‌نام</span></label>
+        </div>
+
+        <div id="signup-fields" style="display:none;">
+          <div class="field"><label>نام و نام خانوادگی</label><input id="full_name" type="text" /><div class="error"></div></div>
+          <div class="field"><label>شماره تماس</label><input id="phone" type="tel" /><div class="error"></div></div>
+        </div>
+
+        <div class="field"><label>ایمیل</label><input id="email" type="email" /><div class="error"></div></div>
+        <div class="field"><label>رمز عبور</label><input id="password" type="password" /><div class="error"></div></div>
+
+        <button class="btn btn-primary btn-block" id="submit-btn">ورود</button>
+
+        <div style="text-align:center; margin:20px 0; color:var(--text-muted); font-size:13px;">یا</div>
+        <button class="btn btn-outline btn-block" id="google-btn">ورود با گوگل</button>
+      </div>
+
+      <div id="account-panel" style="display:none; max-width:480px; margin: 0 auto;">
+        <div class="form-card">
+          <h2 style="font-size:18px; margin-bottom:20px;">حساب کاربری</h2>
+          <p id="account-info" style="color:var(--text-muted); font-size:14px;"></p>
+          <p style="margin-top:14px;">تعداد بلیت گردونه شانس: <strong id="wheel-tickets" style="color:var(--gold-bright);">۰</strong></p>
+          <h3 style="font-size:15px; margin-top:28px; margin-bottom:14px;">سفارش‌های قبلی</h3>
+          <div id="orders-list"></div>
+          <button class="btn btn-ghost" id="logout-btn" style="margin-top:20px;">خروج از حساب</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/gold-price.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('');
+
+document.querySelectorAll('input[name="mode"]').forEach((r) =>
+  r.addEventListener('change', (e) => {
+    const isSignup = e.target.value === 'signup';
+    document.getElementById('signup-fields').style.display = isSignup ? 'block' : 'none';
+    document.getElementById('submit-btn').textContent = isSignup ? 'ثبت‌نام' : 'ورود';
+  })
+);
+
+async function handleSubmit() {
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+  const email = document.getElementById('email');
+  const password = document.getElementById('password');
+  let valid = UI.validateField(email, { required: true, pattern: /^\S+@\S+\.\S+$/, patternMessage: 'ایمیل معتبر وارد کنید' });
+  valid = UI.validateField(password, { required: true, minLength: 6 }) && valid;
+
+  let name, phone;
+  if (mode === 'signup') {
+    name = document.getElementById('full_name');
+    phone = document.getElementById('phone');
+    valid = UI.validateField(name, { required: true }) && valid;
+    valid = UI.validateField(phone, { required: true, pattern: /^09\d{9}$/, patternMessage: 'شماره موبایل معتبر وارد کنید' }) && valid;
+  }
+  if (!valid) return;
+
+  const btn = document.getElementById('submit-btn');
+  UI.setLoading(btn, true);
+  try {
+    if (mode === 'signup') {
+      await Auth.signUp(email.value.trim(), password.value, name.value.trim(), phone.value.trim());
+      UI.toast('ثبت‌نام انجام شد. ایمیل خود را برای تایید بررسی کنید.');
+    } else {
+      await Auth.signIn(email.value.trim(), password.value);
+      window.location.reload();
+    }
+  } catch (e) {
+    UI.toast(e.message || 'خطایی رخ داد', 'error');
+  } finally {
+    UI.setLoading(btn, false);
+  }
+}
+
+document.getElementById('submit-btn').addEventListener('click', handleSubmit);
+document.getElementById('google-btn').addEventListener('click', () => Auth.signInWithGoogle());
+document.getElementById('logout-btn').addEventListener('click', () => Auth.signOut());
+
+async function loadAccountIfLoggedIn() {
+  const user = await Auth.getUser();
+  if (!user) return;
+  document.getElementById('auth-card').style.display = 'none';
+  document.getElementById('account-panel').style.display = 'block';
+  document.getElementById('account-info').textContent = `ایمیل: ${user.email}`;
+
+  const profile = await Auth.getProfile();
+  document.getElementById('wheel-tickets').textContent = (profile?.wheel_tickets || 0).toLocaleString('fa-IR');
+
+  const { data: orders } = await window.supabaseClient
+    .from('orders').select('*').order('created_at', { ascending: false });
+  const list = document.getElementById('orders-list');
+  const statusLabels = { pending:'در انتظار', confirmed:'تایید شده', processing:'در حال پردازش', shipped:'ارسال شده', completed:'تکمیل شده', cancelled:'لغو شده' };
+  list.innerHTML = (orders || []).length
+    ? orders.map(o => `
+      <div style="border-bottom:1px solid var(--line); padding:12px 0; font-size:13.5px; display:flex; justify-content:space-between;">
+        <span>${o.order_number}</span>
+        <span style="color:var(--text-muted)">${statusLabels[o.status] || o.status}</span>
+        <span class="price" style="font-size:13.5px;">${GoldPrice.formatToman(o.total_amount)}</span>
+      </div>`).join('')
+    : '<p style="color:var(--text-muted); font-size:13.5px;">هنوز سفارشی ثبت نکرده‌اید.</p>';
+}
+loadAccountIfLoggedIn();
+</script>
+</body>
+</html>

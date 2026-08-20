@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ثبت سفارش | طلای سرافراز</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div id="app-header"></div>
+<main>
+  <section class="section" style="padding-top:44px;">
+    <div class="container">
+      <h1 style="font-size:28px; margin-bottom:32px;">ثبت سفارش</h1>
+
+      <div class="form-card" style="max-width:560px;" id="checkout-form-wrap">
+        <div class="radio-tabs">
+          <label><input type="radio" name="purchase_type" value="in_person" checked><span>خرید حضوری</span></label>
+          <label><input type="radio" name="purchase_type" value="remote"><span>خرید غیرحضوری (ارسال)</span></label>
+        </div>
+
+        <div class="field">
+          <label>نام و نام خانوادگی</label>
+          <input id="customer_name" type="text" />
+          <div class="error"></div>
+        </div>
+        <div class="field">
+          <label>شماره تماس</label>
+          <input id="customer_phone" type="tel" placeholder="09xxxxxxxxx" />
+          <div class="error"></div>
+        </div>
+
+        <div id="remote-fields" style="display:none;">
+          <div class="field"><label>استان</label><input id="province" type="text" /><div class="error"></div></div>
+          <div class="field"><label>شهر</label><input id="city" type="text" /><div class="error"></div></div>
+          <div class="field"><label>آدرس کامل</label><textarea id="full_address" rows="3"></textarea><div class="error"></div></div>
+          <div class="field"><label>کدپستی</label><input id="postal_code" type="text" /><div class="error"></div></div>
+        </div>
+
+        <div class="cart-summary" style="margin-bottom:24px;">
+          <div style="display:flex; justify-content:space-between;"><span>مبلغ قابل پرداخت</span><strong id="order-total">۰ تومان</strong></div>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="submit-order-btn">ثبت و پرداخت سفارش</button>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/gold-price.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('shop');
+
+const items = Cart.getAll();
+if (!items.length) window.location.href = 'cart.html';
+document.getElementById('order-total').textContent = GoldPrice.formatToman(Cart.total());
+
+document.querySelectorAll('input[name="purchase_type"]').forEach((r) =>
+  r.addEventListener('change', (e) => {
+    document.getElementById('remote-fields').style.display = e.target.value === 'remote' ? 'block' : 'none';
+  })
+);
+
+function genOrderNumber() {
+  return 'GS' + Date.now().toString().slice(-8) + Math.floor(Math.random() * 90 + 10);
+}
+
+async function submitOrder() {
+  const type = document.querySelector('input[name="purchase_type"]:checked').value;
+  const name = document.getElementById('customer_name');
+  const phone = document.getElementById('customer_phone');
+  let valid = UI.validateField(name, { required: true, minLength: 3 });
+  valid = UI.validateField(phone, { required: true, pattern: /^09\d{9}$/, patternMessage: 'شماره موبایل معتبر وارد کنید' }) && valid;
+
+  let remoteData = {};
+  if (type === 'remote') {
+    const province = document.getElementById('province');
+    const city = document.getElementById('city');
+    const address = document.getElementById('full_address');
+    const postal = document.getElementById('postal_code');
+    valid = UI.validateField(province, { required: true }) && valid;
+    valid = UI.validateField(city, { required: true }) && valid;
+    valid = UI.validateField(address, { required: true, minLength: 10 }) && valid;
+    valid = UI.validateField(postal, { required: true, pattern: /^\d{10}$/, patternMessage: 'کد پستی ۱۰ رقمی وارد کنید' }) && valid;
+    remoteData = { province: province.value, city: city.value, full_address: address.value, postal_code: postal.value };
+  }
+
+  if (!valid) return;
+
+  const btn = document.getElementById('submit-order-btn');
+  UI.setLoading(btn, true, 'در حال ثبت سفارش...');
+
+  try {
+    const user = await Auth.getUser();
+    const orderNumber = genOrderNumber();
+    const total = Cart.total();
+
+    const { data: order, error: orderErr } = await window.supabaseClient
+      .from('orders')
+      .insert({
+        order_number: orderNumber,
+        user_id: user?.id || null,
+        purchase_type: type,
+        customer_name: name.value.trim(),
+        customer_phone: phone.value.trim(),
+        total_amount: total,
+        ...remoteData,
+      })
+      .select()
+      .single();
+    if (orderErr) throw orderErr;
+
+    const orderItems = items.map((i) => ({
+      order_id: order.id,
+      product_id: i.productId,
+      product_name: i.name,
+      quantity: i.quantity,
+      unit_price: i.unitPrice,
+      line_total: i.unitPrice * i.quantity,
+    }));
+    const { error: itemsErr } = await window.supabaseClient.from('order_items').insert(orderItems);
+    if (itemsErr) throw itemsErr;
+
+    // اطلاع‌رسانی به مدیر از طریق روبیکا (Edge Function — توکن در سرور نگه‌داری می‌شود)
+    try {
+      await window.supabaseClient.functions.invoke('notify-rubika', { body: { order_id: order.id } });
+    } catch (notifyErr) {
+      console.warn('اطلاع‌رسانی روبیکا ناموفق بود (سفارش با این حال ثبت شد)', notifyErr);
+    }
+
+    Cart.clear();
+    document.getElementById('checkout-form-wrap').innerHTML = `
+      <div style="text-align:center; padding:20px 0;">
+        <div class="badge-gold" style="margin-bottom:20px;">سفارش ثبت شد</div>
+        <h2 style="font-size:22px;">با تشکر از خرید شما</h2>
+        <p style="color:var(--text-muted); margin-top:12px;">شماره سفارش شما: <strong style="color:var(--gold-bright)">${orderNumber}</strong></p>
+        <a href="shop.html" class="btn btn-outline" style="margin-top:24px;">بازگشت به فروشگاه</a>
+      </div>`;
+  } catch (e) {
+    UI.toast('ثبت سفارش با خطا مواجه شد. دوباره تلاش کنید.', 'error');
+    console.error(e);
+  } finally {
+    UI.setLoading(btn, false);
+  }
+}
+
+document.getElementById('submit-order-btn').addEventListener('click', submitOrder);
+</script>
+</body>
+</html>

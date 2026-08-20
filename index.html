@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>طلای سرافراز | فروشگاه آنلاین زیورآلات طلا</title>
+<meta name="description" content="خرید آنلاین زیورآلات طلا با قیمت لحظه‌ای، طراحی لوکس و ضمانت اصالت. مشاهده، سفارش و دریافت حضوری یا غیرحضوری." />
+<meta property="og:title" content="طلای سرافراز | فروشگاه آنلاین زیورآلات طلا" />
+<meta property="og:description" content="خرید آنلاین زیورآلات طلا با قیمت لحظه‌ای و طراحی لوکس." />
+<meta property="og:type" content="website" />
+<link rel="canonical" href="https://example.com/index.html" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div id="app-header"></div>
+
+<main>
+  <section class="hero">
+    <div class="container hero-grid">
+      <div>
+        <div class="eyebrow">فروشگاه آنلاین طلا و جواهر</div>
+        <h1>اصالت طلا،<br><em>در قاب مدرن.</em></h1>
+        <p>هر قطعه، از عیار و قیمت لحظه‌ای طلا تا اجرت، شفاف محاسبه می‌شود. سفارش حضوری یا ارسال به سراسر کشور.</p>
+        <div class="hero-actions">
+          <a href="shop.html" class="btn btn-primary">مشاهده فروشگاه</a>
+          <a href="about.html" class="btn btn-outline">درباره ما</a>
+        </div>
+      </div>
+      <div class="hero-visual reveal" data-parallax>
+        <span style="color:var(--text-muted); font-size:14px;">تصویر شاخص محصول</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head reveal">
+        <div>
+          <div class="eyebrow">پرفروش‌ترین‌ها</div>
+          <h2>منتخب طلای سرافراز</h2>
+        </div>
+        <a href="shop.html" class="btn btn-ghost">مشاهده همه ←</a>
+      </div>
+      <div class="grid grid-4 reveal" id="featured-products">
+        <div class="state-msg" style="grid-column: 1/-1;"><div class="spinner"></div>در حال بارگذاری محصولات...</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="border-top:1px solid var(--line); border-bottom:1px solid var(--line); background: var(--bg-elevated);">
+    <div class="container grid grid-3 reveal">
+      <div>
+        <div class="badge-gold">عیار تضمینی</div>
+        <h3 style="margin-top:16px; font-size:18px;">اصالت‌سنجی هر قطعه</h3>
+        <p style="color:var(--text-muted); font-size:14px; margin-top:8px;">تمامی محصولات با مشخصات دقیق عیار و وزن ارائه می‌شوند.</p>
+      </div>
+      <div>
+        <div class="badge-gold">قیمت شفاف</div>
+        <h3 style="margin-top:16px; font-size:18px;">قیمت لحظه‌ای طلا</h3>
+        <p style="color:var(--text-muted); font-size:14px; margin-top:8px;">قیمت هر محصول بر اساس نرخ روز طلا و اجرت مشخص محاسبه می‌شود.</p>
+      </div>
+      <div>
+        <div class="badge-gold">گردونه شانس</div>
+        <h3 style="margin-top:16px; font-size:18px;">هدیه بعد از هر خرید</h3>
+        <p style="color:var(--text-muted); font-size:14px; margin-top:8px;">با هر خرید موفق یک بلیت گردونه شانس دریافت کنید.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/gold-price.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('home');
+
+async function loadFeatured() {
+  const wrap = document.getElementById('featured-products');
+  try {
+    const pricePerGram = await GoldPrice.getPricePerGram();
+    const { data: products, error } = await window.supabaseClient
+      .from('products')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(4);
+    if (error) throw error;
+
+    if (!products.length) {
+      wrap.innerHTML = '<div class="state-msg" style="grid-column:1/-1;">هنوز محصولی ثبت نشده است.</div>';
+      return;
+    }
+
+    wrap.innerHTML = products
+      .map((p) => {
+        const price = GoldPrice.calcProductPrice(p, pricePerGram);
+        return `
+        <a href="product.html?id=${p.id}" class="product-card">
+          <div class="thumb"><img src="${p.main_image_url || 'https://placehold.co/400x400/17171a/c9a35c?text=Product'}" alt="${p.name}" loading="lazy"></div>
+          <div class="body">
+            <div class="cat">عیار ${p.karat}</div>
+            <h3>${p.name}</h3>
+            <div class="meta"><span>${p.weight_grams} گرم</span><span class="stock-tag ${p.stock > 0 ? 'in' : 'out'}">${p.stock > 0 ? 'موجود' : 'ناموجود'}</span></div>
+            <div class="price">${GoldPrice.formatToman(price)}</div>
+          </div>
+        </a>`;
+      })
+      .join('');
+  } catch (e) {
+    wrap.innerHTML = '<div class="state-msg" style="grid-column:1/-1; color:var(--danger)">خطا در بارگذاری محصولات. لطفاً بعداً تلاش کنید.</div>';
+    console.error(e);
+  }
+}
+loadFeatured();
+</script>
+</body>
+</html>

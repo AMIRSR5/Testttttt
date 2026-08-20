@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>نقد و بررسی‌ها | طلای سرافراز</title>
+<meta name="description" content="نظرات مشتریان درباره محصولات طلای سرافراز." />
+<link rel="canonical" href="https://example.com/reviews.html" />
+<link rel="stylesheet" href="assets/css/style.css" />
+<style>.review-card{ background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:16px; }</style>
+</head>
+<body>
+<div id="app-header"></div>
+<main>
+  <section class="section" style="padding-top:56px;">
+    <div class="container" style="max-width:760px;">
+      <div class="eyebrow">نظرات مشتریان</div>
+      <h1 style="font-size:30px; margin-bottom:32px;">نقد و بررسی‌ها</h1>
+      <div id="reviews-wrap"><div class="state-msg"><div class="spinner"></div></div></div>
+    </div>
+  </section>
+</main>
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('');
+(async () => {
+  const wrap = document.getElementById('reviews-wrap');
+  const { data, error } = await window.supabaseClient
+    .from('reviews')
+    .select('*, products(name, slug)')
+    .eq('is_approved', true)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error || !data?.length) {
+    wrap.innerHTML = '<div class="state-msg">هنوز نظری ثبت نشده است.</div>';
+    return;
+  }
+  wrap.innerHTML = data
+    .map(
+      (r) => `
+    <div class="review-card">
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <a href="product.html?id=${r.product_id}" style="color:var(--gold-bright); font-size:14px;">${r.products?.name || 'محصول'}</a>
+        <span style="color:var(--gold);">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</span>
+      </div>
+      <p style="font-size:14px; color:var(--text-muted);">${r.comment || ''}</p>
+    </div>`
+    )
+    .join('');
+})();
+</script>
+</body>
+</html>

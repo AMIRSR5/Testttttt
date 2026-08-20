@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>فروشگاه | طلای سرافراز</title>
+<meta name="description" content="مشاهده و خرید انواع زیورآلات طلا؛ فیلتر بر اساس دسته‌بندی، عیار و قیمت." />
+<link rel="canonical" href="https://example.com/shop.html" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div id="app-header"></div>
+
+<main>
+  <section class="section" style="padding-top:48px;">
+    <div class="container">
+      <div class="eyebrow">فروشگاه</div>
+      <h1 style="font-size:32px; margin-bottom:28px;">تمام محصولات</h1>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:36px;" id="category-filters">
+        <button class="btn btn-outline active-filter" data-cat="">همه</button>
+      </div>
+
+      <div class="grid grid-4" id="product-list">
+        <div class="state-msg" style="grid-column:1/-1;"><div class="spinner"></div>در حال بارگذاری...</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/gold-price.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('shop');
+
+let allProducts = [];
+let pricePerGram = 0;
+
+function renderCard(p) {
+  const price = GoldPrice.calcProductPrice(p, pricePerGram);
+  return `
+  <a href="product.html?id=${p.id}" class="product-card">
+    <div class="thumb"><img src="${p.main_image_url || 'https://placehold.co/400x400/17171a/c9a35c?text=Product'}" alt="${p.name}" loading="lazy"></div>
+    <div class="body">
+      <div class="cat">عیار ${p.karat}</div>
+      <h3>${p.name}</h3>
+      <div class="meta"><span>${p.weight_grams} گرم</span><span class="stock-tag ${p.stock > 0 ? 'in' : 'out'}">${p.stock > 0 ? 'موجود' : 'ناموجود'}</span></div>
+      <div class="price">${GoldPrice.formatToman(price)}</div>
+    </div>
+  </a>`;
+}
+
+function renderList(products) {
+  const wrap = document.getElementById('product-list');
+  if (!products.length) {
+    wrap.innerHTML = '<div class="state-msg" style="grid-column:1/-1;">محصولی در این دسته‌بندی یافت نشد.</div>';
+    return;
+  }
+  wrap.innerHTML = products.map(renderCard).join('');
+}
+
+async function loadCategories() {
+  const { data: cats } = await window.supabaseClient.from('categories').select('*').order('sort_order');
+  const wrap = document.getElementById('category-filters');
+  (cats || []).forEach((c) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-outline';
+    btn.dataset.cat = c.id;
+    btn.textContent = c.name;
+    wrap.appendChild(btn);
+  });
+  wrap.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const catId = btn.dataset.cat;
+    renderList(catId ? allProducts.filter((p) => p.category_id === catId) : allProducts);
+  });
+}
+
+async function loadProducts() {
+  try {
+    pricePerGram = await GoldPrice.getPricePerGram();
+    const { data, error } = await window.supabaseClient
+      .from('products')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    allProducts = data || [];
+    renderList(allProducts);
+  } catch (e) {
+    document.getElementById('product-list').innerHTML =
+      '<div class="state-msg" style="grid-column:1/-1; color:var(--danger)">خطا در بارگذاری محصولات.</div>';
+    console.error(e);
+  }
+}
+
+loadCategories();
+loadProducts();
+</script>
+</body>
+</html>

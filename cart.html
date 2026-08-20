@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>سبد خرید | طلای سرافراز</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="assets/css/style.css" />
+<style>
+  .cart-row{ display:grid; grid-template-columns: 80px 1fr auto auto auto; gap:18px; align-items:center; padding:18px 0; border-bottom:1px solid var(--line); }
+  .cart-row img{ width:70px; height:70px; object-fit:cover; border-radius:var(--radius); }
+  @media (max-width:640px){ .cart-row{ grid-template-columns: 60px 1fr; } .cart-row > *:nth-child(3), .cart-row > *:nth-child(4){ grid-column:2; } }
+  .cart-summary{ background:var(--bg-card); border:1px solid var(--line); border-radius:var(--radius); padding:26px; }
+</style>
+</head>
+<body>
+<div id="app-header"></div>
+<main>
+  <section class="section" style="padding-top:44px;">
+    <div class="container">
+      <h1 style="font-size:28px; margin-bottom:32px;">سبد خرید</h1>
+      <div style="display:grid; grid-template-columns: 2fr 1fr; gap:40px;" id="cart-layout">
+        <div id="cart-items"></div>
+        <div class="cart-summary">
+          <div style="display:flex; justify-content:space-between; margin-bottom:14px;"><span>جمع کل</span><strong id="cart-total">۰ تومان</strong></div>
+          <a href="checkout.html" class="btn btn-primary btn-block" id="checkout-btn">ادامه فرآیند خرید</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/gold-price.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('shop');
+
+function render() {
+  const items = Cart.getAll();
+  const wrap = document.getElementById('cart-items');
+  const checkoutBtn = document.getElementById('checkout-btn');
+  if (!items.length) {
+    wrap.innerHTML = '<div class="state-msg">سبد خرید شما خالی است. <a href="shop.html" style="color:var(--gold-bright)">مشاهده فروشگاه ←</a></div>';
+    checkoutBtn.classList.add('btn-block');
+    checkoutBtn.style.pointerEvents = 'none';
+    checkoutBtn.style.opacity = '.4';
+  } else {
+    wrap.innerHTML = items
+      .map(
+        (i) => `
+      <div class="cart-row">
+        <img src="${i.image || 'https://placehold.co/100x100/17171a/c9a35c?text=%20'}" alt="${i.name}">
+        <div><h3 style="font-size:15px; font-weight:500;">${i.name}</h3><div class="price" style="font-size:14px;">${GoldPrice.formatToman(i.unitPrice)}</div></div>
+        <div class="qty-input" style="width:fit-content;">
+          <button onclick="Cart.updateQuantity('${i.productId}', ${i.quantity - 1}); render()">−</button>
+          <span style="padding:0 8px;">${i.quantity}</span>
+          <button onclick="Cart.updateQuantity('${i.productId}', ${i.quantity + 1}); render()">+</button>
+        </div>
+        <button class="btn btn-ghost" onclick="Cart.remove('${i.productId}'); render()">حذف</button>
+      </div>`
+      )
+      .join('');
+  }
+  document.getElementById('cart-total').textContent = GoldPrice.formatToman(Cart.total());
+}
+render();
+</script>
+</body>
+</html>

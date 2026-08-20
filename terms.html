@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>قوانین و شرایط | طلای سرافراز</title>
+<meta name="description" content="قوانین و شرایط خرید از فروشگاه آنلاین طلای سرافراز." />
+<link rel="canonical" href="https://example.com/terms.html" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div id="app-header"></div>
+<main>
+  <section class="section" style="padding-top:56px; max-width:760px; margin:0 auto;">
+    <div class="eyebrow">قوانین و شرایط</div>
+    <h1 style="font-size:30px; margin-bottom:20px;">قوانین خرید</h1>
+    <div id="terms-content" style="color:var(--text-muted); font-size:15px; line-height:2;">
+      <div class="state-msg"><div class="spinner"></div></div>
+    </div>
+  </section>
+</main>
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('');
+(async () => {
+  const { data } = await window.supabaseClient.from('site_settings').select('terms_content').eq('id', 1).single();
+  document.getElementById('terms-content').innerHTML = (data?.terms_content || 'قوانین و شرایط هنوز از پنل مدیریت تنظیم نشده است.').replace(/\n/g, '<br>');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>گردونه شانس | طلای سرافراز</title>
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="assets/css/style.css" />
+<style>
+  .wheel-wrap{ max-width:420px; margin:0 auto; text-align:center; }
+  #wheel-canvas{ border-radius:50%; border:4px solid var(--gold-dim); margin-bottom:26px; }
+  .pointer{ width:0; height:0; border-left:12px solid transparent; border-right:12px solid transparent; border-top:20px solid var(--gold-bright); margin:0 auto -8px; }
+</style>
+</head>
+<body>
+<div id="app-header"></div>
+<main>
+  <section class="section" style="padding-top:56px;">
+    <div class="container wheel-wrap">
+      <div class="eyebrow" style="justify-content:center;">گردونه شانس</div>
+      <h1 style="font-size:26px; margin-bottom:10px;">شانس خود را امتحان کنید</h1>
+      <p style="color:var(--text-muted); font-size:14px; margin-bottom:28px;">
+        بلیت‌های شما: <strong id="ticket-count" style="color:var(--gold-bright)">۰</strong>
+      </p>
+      <div id="wheel-area">
+        <div class="pointer"></div>
+        <canvas id="wheel-canvas" width="320" height="320"></canvas>
+        <div><button class="btn btn-primary" id="spin-btn">چرخاندن گردونه</button></div>
+      </div>
+      <div id="wheel-result" style="margin-top:24px; font-size:15px;"></div>
+    </div>
+  </section>
+</main>
+<div id="app-footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/supabase-client.js"></script>
+<script src="assets/js/cart.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+mountLayout('');
+
+let prizes = [];
+let profile = null;
+let wheelEnabled = true;
+const colors = ['#c9a35c', '#8a713c', '#e9c988', '#6b5a30'];
+
+function drawWheel() {
+  const canvas = document.getElementById('wheel-canvas');
+  const ctx = canvas.getContext('2d');
+  const cx = 160, cy = 160, r = 155;
+  const slice = (2 * Math.PI) / prizes.length;
+  prizes.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, i * slice, (i + 1) * slice);
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fill();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(i * slice + slice / 2);
+    ctx.fillStyle = '#0b0b0d';
+    ctx.font = '13px Vazirmatn, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(p.title.slice(0, 12), r - 14, 4);
+    ctx.restore();
+  });
+}
+
+function pickWeightedPrize() {
+  const totalWeight = prizes.reduce((s, p) => s + Number(p.probability_weight || 1), 0);
+  let rand = Math.random() * totalWeight;
+  for (const p of prizes) {
+    rand -= Number(p.probability_weight || 1);
+    if (rand <= 0) return p;
+  }
+  return prizes[prizes.length - 1];
+}
+
+async function spin() {
+  if (!wheelEnabled) { UI.toast('گردونه شانس در حال حاضر غیرفعال است', 'error'); return; }
+  const user = await Auth.getUser();
+  if (!user) { UI.toast('برای چرخاندن گردونه ابتدا وارد حساب کاربری شوید', 'error'); return; }
+  if (!profile || profile.wheel_tickets <= 0) { UI.toast('بلیت گردونه ندارید. با خرید موفق بلیت دریافت کنید.', 'error'); return; }
+  if (!prizes.length) { UI.toast('در حال حاضر جایزه‌ای تعریف نشده است', 'error'); return; }
+
+  const btn = document.getElementById('spin-btn');
+  UI.setLoading(btn, true, 'در حال چرخش...');
+
+  const canvas = document.getElementById('wheel-canvas');
+  canvas.style.transition = 'transform 3.2s cubic-bezier(.17,.67,.34,1)';
+  const randomTurns = 4 + Math.random() * 2;
+  canvas.style.transform = `rotate(${randomTurns * 360}deg)`;
+
+  setTimeout(async () => {
+    const won = pickWeightedPrize();
+    try {
+      await window.supabaseClient.from('wheel_spins').insert({ user_id: user.id, prize_id: won.id, prize_title_snapshot: won.title });
+      await window.supabaseClient.from('profiles').update({ wheel_tickets: profile.wheel_tickets - 1 }).eq('id', user.id);
+      profile.wheel_tickets -= 1;
+      document.getElementById('ticket-count').textContent = profile.wheel_tickets.toLocaleString('fa-IR');
+      document.getElementById('wheel-result').innerHTML = `🎉 تبریک! جایزه شما: <strong style="color:var(--gold-bright)">${won.title}</strong>`;
+    } catch (e) {
+      UI.toast('خطا در ثبت نتیجه چرخش', 'error');
+      console.error(e);
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }, 3300);
+}
+
+(async () => {
+  const { data: ws } = await window.supabaseClient.from('wheel_settings').select('*').eq('id', 1).single();
+  wheelEnabled = ws?.is_enabled ?? true;
+  if (!wheelEnabled) {
+    document.getElementById('wheel-area').innerHTML = '<p style="color:var(--text-muted)">گردونه شانس در حال حاضر غیرفعال است.</p>';
+    return;
+  }
+  const { data: pz } = await window.supabaseClient.from('wheel_prizes').select('*').eq('is_active', true).order('sort_order');
+  prizes = pz || [];
+  if (!prizes.length) {
+    document.getElementById('wheel-area').innerHTML = '<p style="color:var(--text-muted)">هنوز جایزه‌ای تعریف نشده است.</p>';
+    return;
+  }
+  drawWheel();
+
+  profile = await Auth.getProfile();
+  document.getElementById('ticket-count').textContent = (profile?.wheel_tickets || 0).toLocaleString('fa-IR');
+  document.getElementById('spin-btn').addEventListener('click', spin);
+})();
+</script>
+</body>
+</html>
